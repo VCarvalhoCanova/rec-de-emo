@@ -1,70 +1,60 @@
 import numpy as np
 import cv2
-from scipy.spatial import distance
-import dlib
 from tensorflow.keras.models import load_model
-from imutils import face_utils
 
 def show_webcam():
-    shape_x, shape_y = 48, 48
-
-    # Índices dos landmarks
-    (lStart, lEnd) = face_utils.FACIAL_LANDMARKS_IDXS["left_eye"]
-    (rStart, rEnd) = face_utils.FACIAL_LANDMARKS_IDXS["right_eye"]
-    # ... (demais índices, se quiser desenhar)
-
+    IMG_SIZE = 48
     emotions = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
 
-    # Carregar o seu modelo treinado
-    model = load_model('best_emotion_model.h5')  # ou emotion_model_final.h5
+    model = load_model('best_emotion_model.h5')   # seu modelo treinado
 
-    face_detect = dlib.get_frontal_face_detector()
-    predictor_landmarks = dlib.shape_predictor("Models/face_landmarks.dat")
+    # Carregar o detector Haar Cascade do OpenCV
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-    video_capture = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0)
 
     while True:
-        ret, frame = video_capture.read()
+        ret, frame = cap.read()
         if not ret:
             break
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        rects = face_detect(gray, 1)
 
-        for i, rect in enumerate(rects):
-            shape = predictor_landmarks(gray, rect)
-            shape = face_utils.shape_to_np(shape)
-            (x, y, w, h) = face_utils.rect_to_bb(rect)
+        # Detectar faces
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(48, 48))
 
-            # Extração e pré-processamento (igual ao treino)
-            face = gray[y:y+h, x:x+w]
-            face = cv2.resize(face, (shape_x, shape_y))
-            face = face.astype(np.float32) / 255.0          # normalização correta
-            face = np.reshape(face, (1, shape_x, shape_y, 1))
+        for i, (x, y, w, h) in enumerate(faces):
+            # Recortar a face e pré-processar (igual ao treino)
+            face_roi = gray[y:y+h, x:x+w]
+            face_roi = cv2.resize(face_roi, (IMG_SIZE, IMG_SIZE))
+            face_roi = face_roi.astype(np.float32) / 255.0
+            face_roi = np.reshape(face_roi, (1, IMG_SIZE, IMG_SIZE, 1))
 
             # Predição
-            prediction = model.predict(face, verbose=0)[0]
-            pred_idx = np.argmax(prediction)
-            emotion_text = emotions[pred_idx]
+            preds = model.predict(face_roi, verbose=0)[0]
+            idx = np.argmax(preds)
+            emotion = emotions[idx]
+            prob = preds[idx]
 
-            # Desenho na tela
+            # Desenhar retângulo e texto
             cv2.rectangle(frame, (x, y), (x+w, y+h), (0,255,0), 2)
-            cv2.putText(frame, f"{emotion_text}", (x, y-10),
+            cv2.putText(frame, f'{emotion} ({prob:.2f})', (x, y-10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
 
-            # (Opcional) relatório detalhado com %
-            for idx, (emo, prob) in enumerate(zip(emotions, prediction)):
-                cv2.putText(frame, f"{emo}: {prob:.2f}", (40, 120 + i*140 + idx*20),
+            # (Opcional) Relatório detalhado
+            for j, (emo, p) in enumerate(zip(emotions, preds)):
+                cv2.putText(frame, f'{emo}: {p:.2f}', 
+                            (40, 120 + i*140 + j*20),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (155,155,0), 1)
 
-        cv2.putText(frame, f'Rostos: {len(rects)}', (40,40),
+        cv2.putText(frame, f'Rostos: {len(faces)}', (40,40),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (155,0,0), 2)
-        cv2.imshow('Emoções em Tempo Real', frame)
+        cv2.imshow('Webcam sem dlib', frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    video_capture.release()
+    cap.release()
     cv2.destroyAllWindows()
 
 if __name__ == '__main__':

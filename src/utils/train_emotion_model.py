@@ -12,8 +12,8 @@ EPOCHS = 50
 NUM_CLASSES = 7
 
 # Caminhos – ajuste para suas pastas
-train_dir = '../../data/train/'
-val_dir   = '../../data/test/'   # ou crie uma divisão manual
+train_dir = 'data/train/'
+val_dir   = 'data/test/'   # ou crie uma divisão manual
 
 # Geradores com data augmentation (apenas no treino)
 train_datagen = ImageDataGenerator(
