@@ -7,4 +7,5 @@ pandas>=2.2.0
 deepface>=0.0.89
 matplotlib>=3.10.0
 requests>=2.32.0
-sklearn>=1.9.0
+scikit-learn>=1.9.0
+seaborn
