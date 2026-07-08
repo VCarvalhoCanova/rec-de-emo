@@ -6,7 +6,7 @@ def show_webcam():
     IMG_SIZE = 48
     emotions = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
 
-    model = load_model('best_emotion_model.h5')   # seu modelo treinado
+    model = load_model('best_emotion_model.h5', compile=False)   # seu modelo treinado
 
     # Carregar o detector Haar Cascade do OpenCV
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
