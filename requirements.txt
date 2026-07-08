@@ -9,3 +9,4 @@ matplotlib>=3.10.0
 requests>=2.32.0
 scikit-learn>=1.9.0
 seaborn
+mtcnn

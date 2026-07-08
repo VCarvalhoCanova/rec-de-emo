@@ -91,7 +91,7 @@ def oversample_minority_classes(base_dir, classes_to_oversample, factor=3):
         print(f"  -> Após oversampling: {len(new_images)} imagens.\n")
 
 # Execute uma vez (descomente se quiser aplicar):
-oversample_minority_classes(train_dir, classes_to_oversample=['disgust', 'neutral'], factor=3)
+#oversample_minority_classes(train_dir, classes_to_oversample=['disgust', 'neutral'], factor=3)
 
 # ------------------------------------------------------------
 # 2. Calcular pesos da Class-Balanced Loss
