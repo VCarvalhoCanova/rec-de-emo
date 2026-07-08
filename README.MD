@@ -15,23 +15,35 @@ Este projeto implementa uma rede neural convolucional (CNN) para reconhecimento 
    ```bash
    git clone https://github.com/seu-usuario/rec-de-emo.git
    cd rec-de-emo
+   ```
 
 ## Crie um ambiente virtual e ative o ambienta
 
+```bash
 python -m venv venv
+```
 
-Windows: venv\Scripts\activate 
+Windows: 
+```bash
+venv\Scripts\activate 
+```
 
 ou
 
-Linux: source venv/bin/activate
+# Linux: 
+```bash
+source venv/bin/activate
+```
 
 ## Instale as dependências:
 
+```bash
 pip install -r requirements.txt
+```
 
 ## Estrutura dos Dados (para treinamento)
 
+```text
 data/
 ├── train/
 │   ├── angry/
@@ -49,11 +61,16 @@ data/
     ├── neutral/
     ├── sad/
     └── surprise/
+```
 
 ## Treinamento do Modelo
 
+```bash
 python -m src.utils.train_emotion_model.py
+```
 
 ## Executando a Detecção em Tempo Real
 
+```bash
 python -m src.utils.webcam_detection
+```
