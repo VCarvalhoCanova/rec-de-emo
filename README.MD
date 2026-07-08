@@ -32,6 +32,7 @@ pip install -r requirements.txt
 
 ## Estrutura dos Dados (para treinamento)
 
+```text
 data/
 ├── train/
 │   ├── angry/
@@ -49,6 +50,7 @@ data/
     ├── neutral/
     ├── sad/
     └── surprise/
+```
 
 ## Treinamento do Modelo
 
