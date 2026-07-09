@@ -21,6 +21,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from collections import Counter
 import shutil
+import datetime          # --- NOVO ---
+import json              # --- NOVO ---
 
 # ------------------------------------------------------------
 # 0. Configurações
@@ -33,8 +35,8 @@ SMOOTHING = 0.05               # label smoothing leve
 FOCAL_GAMMA = 2.0
 FOCAL_ALPHA = 0.25
 
-train_dir = 'data/train'
-val_dir   = 'data/test'
+train_dir = 'data/augmented/train'
+val_dir   = 'data/augmented/test'
 
 # ------------------------------------------------------------
 # 1. Oversampling offline (executar uma vez)
@@ -240,9 +242,21 @@ y_pred = np.argmax(preds, axis=1)
 y_true = val_generator.classes[:len(y_pred)]
 
 labels = list(train_generator.class_indices.keys())
+report_str = classification_report(y_true, y_pred, target_names=labels)
 print("\nRelatório de Classificação:\n")
-print(classification_report(y_true, y_pred, target_names=labels))
+print(report_str)
 
+# --- NOVO: criação da pasta de resultados com timestamp ---
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+results_dir = f"results_{timestamp}"
+os.makedirs(results_dir, exist_ok=True)
+print(f"\nSalvando métricas na pasta: {results_dir}")
+
+# 1. Salvar relatório de classificação
+with open(os.path.join(results_dir, "classification_report.txt"), "w") as f:
+    f.write(report_str)
+
+# 2. Matriz de confusão
 cm = confusion_matrix(y_true, y_pred)
 plt.figure(figsize=(8,6))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
@@ -250,4 +264,37 @@ sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
 plt.xlabel('Predito')
 plt.ylabel('Verdadeiro')
 plt.title('Matriz de Confusão - Validação')
-plt.show()
+plt.tight_layout()
+plt.savefig(os.path.join(results_dir, "confusion_matrix.png"), dpi=150)
+plt.close()  # fecha a figura para não sobrepor os próximos plots
+
+# 3. Gráficos do histórico de treinamento
+# Perda
+plt.figure(figsize=(10,4))
+plt.subplot(1,2,1)
+plt.plot(history.history['loss'], label='Treino')
+plt.plot(history.history['val_loss'], label='Validação')
+plt.title('Perda durante o treinamento')
+plt.xlabel('Época')
+plt.ylabel('Perda')
+plt.legend()
+
+# Acurácia
+plt.subplot(1,2,2)
+plt.plot(history.history['accuracy'], label='Treino')
+plt.plot(history.history['val_accuracy'], label='Validação')
+plt.title('Acurácia durante o treinamento')
+plt.xlabel('Época')
+plt.ylabel('Acurácia')
+plt.legend()
+
+plt.tight_layout()
+plt.savefig(os.path.join(results_dir, "training_history.png"), dpi=150)
+plt.close()
+
+# 4. Salvar histórico como JSON para análises futuras
+with open(os.path.join(results_dir, "history.json"), "w") as f:
+    json.dump(history.history, f, indent=2)
+
+print(f"Métricas salvas com sucesso em {results_dir}/")
+# ------------------------------------------------------------
