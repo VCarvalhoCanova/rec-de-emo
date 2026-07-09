@@ -19,7 +19,7 @@ def show_webcam():
 
     # Carregar modelo de emoção treinado
     print("Carregando modelo de emoções...")
-    model = load_model('mode.augmented.best_emotion_model.h5', compile=False)
+    model = load_model('models/augmented/best_emotion_model.h5', compile=False)
     print("Modelo carregado.")
 
     # Inicializar detector MTCNN
