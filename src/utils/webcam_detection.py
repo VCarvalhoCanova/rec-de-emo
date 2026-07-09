@@ -1,94 +1,87 @@
-"""
-webcam_detection_mtcnn.py
-Detecção de emoções em tempo real usando:
-- MTCNN para localização de faces
-- Modelo CNN pré‑treinado (best_emotion_model.h5)
-"""
-
+import time
 import cv2
 import numpy as np
 from tensorflow.keras.models import load_model
-from mtcnn import MTCNN
 
-def show_webcam():
-    # ------------------------------------------------------------
-    # Configurações
-    # ------------------------------------------------------------
-    IMG_SIZE = 48
-    emotions = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
+IMG_SIZE = 48
+emotions = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
 
-    # Carregar modelo de emoção treinado
-    print("Carregando modelo de emoções...")
-    model = load_model('models/augmented/best_emotion_model.h5', compile=False)
-    print("Modelo carregado.")
+# ---------- 1. Modelo de emoção ----------
+print("Carregando modelo de emoções...")
+model = load_model('models/augmented/best_emotion_model.h5', compile=False)
+# warm-up
+dummy = np.zeros((1, IMG_SIZE, IMG_SIZE, 1), dtype=np.float32)
+_ = model.predict(dummy, verbose=0)
+print("Modelo aquecido.")
 
-    # Inicializar detector MTCNN
-    print("Inicializando MTCNN...")
-    detector = MTCNN()
-    print("MTCNN pronto.")
+# ---------- 2. Classificador Haar (substitui o MTCNN) ----------
+print("Carregando classificador Haar...")
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+print("Haar pronto.")
 
-    # Inicializar webcam
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("❌ Não foi possível abrir a webcam.")
-        return
+# ---------- 3. Webcam ----------
+cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)   # resolução reduzida
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-    print("Pressione 'q' para sair.")
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+if not cap.isOpened():
+    print("Erro ao abrir a webcam.")
+    exit()
 
-        # MTCNN espera RGB
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+prev_time = time.time()
+print("Pressione 'q' para sair.")
 
-        # Detectar faces
-        detections = detector.detect_faces(rgb)
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
 
-        for i, face in enumerate(detections):
-            x, y, w, h = face['box']
-            # Garantir coordenadas positivas
-            x, y = max(0, x), max(0, y)
+    # Espelhamento para selfie (opcional)
+    frame = cv2.flip(frame, 1)
 
-            # Extrair região da face (cinza)
-            face_roi = frame[y:y+h, x:x+w]  # frame está em BGR, mas vamos converter para cinza em seguida
-            if face_roi.size == 0:
-                continue
+    # Converter para escala de cinza (Haar só precisa disso)
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-            gray_face = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
-            # Redimensionar e normalizar
-            resized = cv2.resize(gray_face, (IMG_SIZE, IMG_SIZE))
-            normalized = resized.astype(np.float32) / 255.0
-            input_data = np.reshape(normalized, (1, IMG_SIZE, IMG_SIZE, 1))
+    # Detectar faces
+    faces = face_cascade.detectMultiScale(
+        gray,
+        scaleFactor=1.1,
+        minNeighbors=5,
+        minSize=(80, 80)          # ignora faces muito pequenas
+    )
 
-            # Predição da emoção
-            preds = model.predict(input_data, verbose=0)[0]
-            idx = np.argmax(preds)
-            emotion = emotions[idx]
-            prob = preds[idx]
+    for (x, y, w, h) in faces:
+        # Recortar região da face (em cinza)
+        face_roi = gray[y:y+h, x:x+w]
+        if face_roi.size == 0:
+            continue
 
-            # Desenhar retângulo e texto no frame (BGR)
-            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-            cv2.putText(frame, f'{emotion} ({prob:.2f})', (x, y-10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+        # Pré-processamento para o modelo
+        resized = cv2.resize(face_roi, (IMG_SIZE, IMG_SIZE))
+        normalized = resized.astype(np.float32) / 255.0
+        input_data = np.reshape(normalized, (1, IMG_SIZE, IMG_SIZE, 1))
 
-            # Opcional: relatório detalhado das probabilidades
-            for j, (emo, p) in enumerate(zip(emotions, preds)):
-                cv2.putText(frame, f'{emo}: {p:.2f}',
-                            (40, 120 + i*140 + j*20),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (155, 155, 0), 1)
+        # Predizer emoção
+        preds = model.predict(input_data, verbose=0)[0]
+        idx = np.argmax(preds)
+        emotion = emotions[idx]
+        prob = preds[idx]
 
-        # Mostrar contador de faces e FPS (opcional)
-        cv2.putText(frame, f'Rostos: {len(detections)}', (40, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (155, 0, 0), 2)
+        # Desenhar retângulo e emoção
+        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        cv2.putText(frame, f'{emotion} ({prob:.2f})', (x, y-10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
-        cv2.imshow('Webcam - MTCNN + Emotion', frame)
+    # FPS
+    curr_time = time.time()
+    fps = 1.0 / (curr_time - prev_time + 1e-6)
+    prev_time = curr_time
+    cv2.putText(frame, f'FPS: {fps:.1f}', (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+    cv2.imshow('Emoções - Haar', frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
-    cap.release()
-    cv2.destroyAllWindows()
-
-if __name__ == '__main__':
-    show_webcam()
+cap.release()
+cv2.destroyAllWindows()
