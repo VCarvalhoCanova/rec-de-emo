@@ -8,7 +8,7 @@ emotions = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
 
 # ---------- 1. Modelo de emoção ----------
 print("Carregando modelo de emoções...")
-model = load_model('models/augmented/best_emotion_model.h5', compile=False)
+model = load_model('models/noaug_oversample/best_emotion_model.h5', compile=False)
 # warm-up
 dummy = np.zeros((1, IMG_SIZE, IMG_SIZE, 1), dtype=np.float32)
 _ = model.predict(dummy, verbose=0)

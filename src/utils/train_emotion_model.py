@@ -21,8 +21,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from collections import Counter
 import shutil
-import datetime          # --- NOVO ---
-import json              # --- NOVO ---
+import datetime
+import json
 
 # ------------------------------------------------------------
 # 0. Configurações
@@ -35,8 +35,13 @@ SMOOTHING = 0.05               # label smoothing leve
 FOCAL_GAMMA = 2.0
 FOCAL_ALPHA = 0.25
 
-train_dir = 'data/augmented/train'
-val_dir   = 'data/augmented/test'
+# --- FLAGS DE CONTROLE (altere aqui conforme desejar) ---
+USE_AUGMENTATION = True   # True = com augmentation no treino | False = só rescale
+USE_OVERSAMPLING = False   # True = executa oversampling offline antes do treino
+# ---------------------------------------------------------
+
+train_dir = 'data/normal/train'
+val_dir   = 'data/normal/test'
 
 # ------------------------------------------------------------
 # 1. Oversampling offline (executar uma vez)
@@ -63,7 +68,6 @@ def oversample_minority_classes(base_dir, classes_to_oversample, factor=3):
             print(f"Pasta {class_dir} não encontrada. Pulando.")
             continue
         
-        # Listar arquivos de imagem (supondo .jpg, .png, .jpeg)
         images = [f for f in os.listdir(class_dir) 
                   if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
         num_original = len(images)
@@ -71,13 +75,11 @@ def oversample_minority_classes(base_dir, classes_to_oversample, factor=3):
         
         for img_file in images:
             img_path = os.path.join(class_dir, img_file)
-            # Carregar como array (nível de cinza) e normalizar para 0-1
             img = tf.keras.preprocessing.image.load_img(
                 img_path, color_mode='grayscale', target_size=(IMG_SIZE, IMG_SIZE))
-            x = tf.keras.preprocessing.image.img_to_array(img)  # shape (48,48,1)
-            x = x.reshape((1,) + x.shape)  # (1,48,48,1)
+            x = tf.keras.preprocessing.image.img_to_array(img)
+            x = x.reshape((1,) + x.shape)
             
-            # Gerar 'factor-1' novas imagens a partir de cada original
             i = 0
             for batch in datagen.flow(x, batch_size=1,
                                       save_to_dir=class_dir,
@@ -87,44 +89,46 @@ def oversample_minority_classes(base_dir, classes_to_oversample, factor=3):
                 if i >= factor - 1:
                     break
         
-        # Contar resultado
         new_images = [f for f in os.listdir(class_dir) 
                       if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
         print(f"  -> Após oversampling: {len(new_images)} imagens.\n")
 
-# Execute uma vez (descomente se quiser aplicar):
-#oversample_minority_classes(train_dir, classes_to_oversample=['disgust', 'neutral'], factor=3)
+# Executa oversampling se a flag estiver ativada
+if USE_OVERSAMPLING:
+    print("--- Executando oversampling offline ---")
+    oversample_minority_classes(train_dir, classes_to_oversample=['disgust'], factor=15)
+    oversample_minority_classes(train_dir, classes_to_oversample=['fear', 'angry', 'surprise'], factor=1.8)
+    oversample_minority_classes(train_dir, classes_to_oversample=['sad', 'neutral'], factor=1.5)
+    print("--- Oversampling concluído ---\n")
 
 # ------------------------------------------------------------
 # 2. Calcular pesos da Class-Balanced Loss
 # ------------------------------------------------------------
 def compute_class_balanced_weights(train_generator, beta=0.9999):
-    """
-    Calcula pesos baseados no número efetivo de amostras (Cui et al.)
-    beta: quanto mais próximo de 1, mais próximo do inverso da frequência.
-          Valores como 0.99 ou 0.999 dão pesos suaves.
-    """
     counter = Counter(train_generator.classes)
     class_counts = np.array([counter[i] for i in range(NUM_CLASSES)])
     effective_num = 1.0 - np.power(beta, class_counts)
     weights = (1.0 - beta) / effective_num
-    weights = weights / np.sum(weights) * NUM_CLASSES   # normalizar para média = 1
+    weights = weights / np.sum(weights) * NUM_CLASSES
     return dict(enumerate(weights))
 
 # ------------------------------------------------------------
 # 3. Geradores
 # ------------------------------------------------------------
-train_datagen = ImageDataGenerator(
-    rescale=1./255,
-    rotation_range=20,
-    width_shift_range=0.2,
-    height_shift_range=0.2,
-    shear_range=0.2,
-    zoom_range=0.2,
-    horizontal_flip=True,
-    fill_mode='nearest',
-    brightness_range=[0.8, 1.2]
-)
+if USE_AUGMENTATION:
+    train_datagen = ImageDataGenerator(
+        rescale=1./255,
+        rotation_range=20,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        shear_range=0.2,
+        zoom_range=0.2,
+        horizontal_flip=True,
+        fill_mode='nearest',
+        brightness_range=[0.8, 1.2]
+    )
+else:
+    train_datagen = ImageDataGenerator(rescale=1./255)
 
 val_datagen = ImageDataGenerator(rescale=1./255)
 
@@ -148,7 +152,6 @@ val_generator = val_datagen.flow_from_directory(
 
 print("Mapeamento de classes:", train_generator.class_indices)
 
-# Calcular pesos CB
 class_weight_cb = compute_class_balanced_weights(train_generator, beta=0.999)
 print("Class-Balanced weights (beta=0.999):", class_weight_cb)
 
@@ -157,7 +160,6 @@ print("Class-Balanced weights (beta=0.999):", class_weight_cb)
 # ------------------------------------------------------------
 def focal_loss(alpha=FOCAL_ALPHA, gamma=FOCAL_GAMMA, smooth=SMOOTHING):
     def loss(y_true, y_pred):
-        # label smoothing
         y_true = y_true * (1.0 - smooth) + smooth / NUM_CLASSES
         epsilon = tf.keras.backend.epsilon()
         y_pred = tf.clip_by_value(y_pred, epsilon, 1.0 - epsilon)
@@ -225,7 +227,7 @@ history = model.fit(
     epochs=EPOCHS,
     validation_data=val_generator,
     validation_steps=val_generator.samples // BATCH_SIZE,
-    class_weight=class_weight_cb,   # pesos suaves da CB loss
+    class_weight=class_weight_cb,
     callbacks=[early_stop, reduce_lr, checkpoint],
     verbose=1
 )
@@ -234,7 +236,7 @@ model.save('emotion_model_final.h5')
 print("Treinamento concluído. Modelos salvos.")
 
 # ------------------------------------------------------------
-# 8. Avaliação
+# 8. Avaliação e salvamento dos resultados com metadados
 # ------------------------------------------------------------
 val_generator.reset()
 preds = model.predict(val_generator, steps=val_generator.samples // BATCH_SIZE + 1)
@@ -246,9 +248,11 @@ report_str = classification_report(y_true, y_pred, target_names=labels)
 print("\nRelatório de Classificação:\n")
 print(report_str)
 
-# --- NOVO: criação da pasta de resultados com timestamp ---
+# --- Criação da pasta de resultados com nome descritivo ---
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-results_dir = f"results_{timestamp}"
+aug_str = "aug" if USE_AUGMENTATION else "noaug"
+oversample_str = "oversample" if USE_OVERSAMPLING else "nooversample"
+results_dir = f"results_{timestamp}_{aug_str}_{oversample_str}"   # <-- NOVO
 os.makedirs(results_dir, exist_ok=True)
 print(f"\nSalvando métricas na pasta: {results_dir}")
 
@@ -266,10 +270,9 @@ plt.ylabel('Verdadeiro')
 plt.title('Matriz de Confusão - Validação')
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, "confusion_matrix.png"), dpi=150)
-plt.close()  # fecha a figura para não sobrepor os próximos plots
+plt.close()
 
-# 3. Gráficos do histórico de treinamento
-# Perda
+# 3. Gráficos do histórico
 plt.figure(figsize=(10,4))
 plt.subplot(1,2,1)
 plt.plot(history.history['loss'], label='Treino')
@@ -279,7 +282,6 @@ plt.xlabel('Época')
 plt.ylabel('Perda')
 plt.legend()
 
-# Acurácia
 plt.subplot(1,2,2)
 plt.plot(history.history['accuracy'], label='Treino')
 plt.plot(history.history['val_accuracy'], label='Validação')
@@ -292,9 +294,28 @@ plt.tight_layout()
 plt.savefig(os.path.join(results_dir, "training_history.png"), dpi=150)
 plt.close()
 
-# 4. Salvar histórico como JSON para análises futuras
+# 4. Salvar histórico como JSON
 with open(os.path.join(results_dir, "history.json"), "w") as f:
     json.dump(history.history, f, indent=2)
 
-print(f"Métricas salvas com sucesso em {results_dir}/")
+# 5. Salvar configurações completas (metadados) em um arquivo JSON  # <-- NOVO
+config = {
+    "USE_AUGMENTATION": USE_AUGMENTATION,
+    "USE_OVERSAMPLING": USE_OVERSAMPLING,
+    "IMG_SIZE": IMG_SIZE,
+    "BATCH_SIZE": BATCH_SIZE,
+    "EPOCHS": EPOCHS,
+    "NUM_CLASSES": NUM_CLASSES,
+    "SMOOTHING": SMOOTHING,
+    "FOCAL_GAMMA": FOCAL_GAMMA,
+    "FOCAL_ALPHA": FOCAL_ALPHA,
+    "train_dir": train_dir,
+    "val_dir": val_dir,
+    "class_weight_cb": class_weight_cb,
+    "class_indices": train_generator.class_indices
+}
+with open(os.path.join(results_dir, "config.json"), "w") as f:
+    json.dump(config, f, indent=2)
+
+print(f"Métricas e configurações salvas com sucesso em {results_dir}/")
 # ------------------------------------------------------------
