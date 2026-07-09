@@ -1,0 +1,31 @@
+{
+  "USE_AUGMENTATION": true,
+  "USE_OVERSAMPLING": false,
+  "IMG_SIZE": 48,
+  "BATCH_SIZE": 64,
+  "EPOCHS": 70,
+  "NUM_CLASSES": 7,
+  "SMOOTHING": 0.05,
+  "FOCAL_GAMMA": 2.0,
+  "FOCAL_ALPHA": 0.25,
+  "train_dir": "data/normal/train",
+  "val_dir": "data/normal/test",
+  "class_weight_cb": {
+    "0": 0.7991035364803648,
+    "1": 2.2188733223026813,
+    "2": 0.7976553017793486,
+    "3": 0.7849987164043976,
+    "4": 0.7899218130427025,
+    "5": 0.790723339310477,
+    "6": 0.818723970680027
+  },
+  "class_indices": {
+    "angry": 0,
+    "disgust": 1,
+    "fear": 2,
+    "happy": 3,
+    "neutral": 4,
+    "sad": 5,
+    "surprise": 6
+  }
+}
