@@ -33,10 +33,13 @@ rec-de-emo/
 │   └── normal/
 │       ├── train/          # subpastas por classe (angry, disgust, …)
 │       └── test/
+│   └── oversample/
+│       ├── train/          # subpastas com oversample por classe
+│       └── test/
 ├── models/
-│   ├── aug_oversample/     # ⭐ melhores resultados
+│   ├── aug_oversample/    
 │   ├── aug_nooversample/
-│   ├── noaug_oversample/
+│   ├── noaug_oversample/    # ⭐ melhores resultados
 │   └── noaug_nooversample/
 ├── src/
 │   └── utils/
@@ -71,12 +74,7 @@ pip install -r requirements.txt
 
 ### 1. Prepare o dataset
 
-Baixe o [FER-2013](https://www.kaggle.com/datasets/msambare/fer2013) e organize as imagens no formato:
-
-```
-data/normal/train/<classe>/imagem.png
-data/normal/test/<classe>/imagem.png
-```
+Use o dataset já configurado em `data/`, usando `data/normal` é a base original do Kaggle [FER-2013](https://www.kaggle.com/datasets/msambare/fer2013), em `data/oversample` é com o método que gerou os melhores resultados.
 
 As classes esperadas são: `angry`, `disgust`, `fear`, `happy`, `neutral`, `sad`, `surprise`.
 
@@ -91,9 +89,9 @@ USE_OVERSAMPLING = True   # True = oversampling offline antes do treino
 
 | Combinação | Pasta de saída sugerida |
 |---|---|
-| `aug=True`, `oversample=True` | `models/aug_oversample/` ⭐ |
+| `aug=True`, `oversample=True` | `models/aug_oversample/`  |
 | `aug=True`, `oversample=False` | `models/aug_nooversample/` |
-| `aug=False`, `oversample=True` | `models/noaug_oversample/` |
+| `aug=False`, `oversample=True` | `models/noaug_oversample/` ⭐ |
 | `aug=False`, `oversample=False` | `models/noaug_nooversample/` |
 
 ### 3. Execute o treinamento
@@ -115,7 +113,7 @@ O script irá:
 
 ### 4. Mova os pesos para `models/`
 
-Após o treino, copie os arquivos gerados para a subpasta correspondente:
+Após o treino, copie os arquivos gerados para a subpasta correspondente, exemplo:
 
 ```bash
 cp best_emotion_model.h5   models/aug_oversample/
@@ -126,7 +124,7 @@ cp emotion_model_final.h5  models/aug_oversample/
 
 ## Passos para usar os pesos diretamente na webcam
 
-> ⭐ **Os pesos com melhores resultados estão em `models/aug_oversample/`** (treinado com augmentation online + oversampling offline).
+> ⭐ **Os pesos com melhores resultados estão em `models/noaug_oversample/`** (treinado apenas com oversampling offline, sem augmentation ).
 
 ### 1. Aponte o script para o arquivo `.h5` desejado
 
@@ -134,10 +132,10 @@ Abra `src/utils/webcam_detection.py` e ajuste a linha de carregamento do modelo:
 
 ```python
 # Para usar os melhores pesos (aug + oversample):
-model = load_model('models/aug_oversample/best_emotion_model.h5', compile=False)
+model = load_model('models/noaug_oversample/best_emotion_model.h5', compile=False)
 
 # Para testar outro conjunto de pesos, basta trocar o caminho:
-# model = load_model('models/noaug_oversample/best_emotion_model.h5', compile=False)
+# model = load_model('models/aug_oversample/best_emotion_model.h5', compile=False)
 ```
 
 ### 2. Execute a detecção em tempo real
